@@ -1,0 +1,19 @@
+def group_contiguous_intervals(intervals):
+    groups = []
+    current_group = []
+
+    for interval in intervals:
+        if not current_group:
+            current_group.append(interval)
+        else:
+            last_interval = current_group[-1]
+            if last_interval[3] == interval[2]:
+                current_group.append(interval)
+            else:
+                groups.append(current_group)
+                current_group = [interval]
+
+    if current_group:
+        groups.append(current_group)
+
+    return groups

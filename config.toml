@@ -1,0 +1,71 @@
+# This is a TOML file
+# Lines starting with a # are comments and do not affect
+# anything. They are simply notes.
+
+# Some things you should know about TOML:
+#       - Text fields must be wrapped in quotes: 'text'
+#       - Lists get wrapped in square brackets and items
+#         in them are seperated by commas
+# list_of_text_fields = ['example', 'text']
+
+# WHEN EDITING THIS FILE, ONLY EDIT THINGS ON THE RIGHT
+# SIDE OF AN ASSIGNMENT (ONLY THE STUFF AFTER AN EQUALS SIGN)
+
+[settings]
+# Provide a list of holes to evaluate
+# Eg; hole_selections = ['CANDD017', 'CANDD018']
+# Leave as ['*'] to calculate all holes
+hole_selections = ['*']
+
+exported_data_path = 'Drilling_Samples_R1.csv'
+
+# The location to store a database cache
+# Don't touch unless you know what you are doing
+cache_location = './cache'
+
+# The column names of some key field as described in
+# the data set
+sample_id_column_name = 'SampleID'
+hole_id_column_name = 'Hole number'
+
+
+[[assays]]
+element = "Cu"
+unit = "%" # This must be the unit used in the database for this element
+cutoffs = [0.1, 0.5, 0.1]
+
+secondaries = [
+    {element = "Au", unit = "g/t", cutoff = 0.1},
+    {element = "Ag", unit = "ppm", cutoff = 0.1},
+    {element = "Co", unit = "ppm", cutoff = 0.1},
+    {element = "Zn", unit = "ppm", cutoff = 0.1}
+]
+
+[[assays]]
+element = "Ni"
+unit = "%" # This must be the unit used in the database for this element
+cutoffs = [0.1, 0.5, 0.1]
+
+secondaries = [
+    {element = "Cu", unit = "%", cutoff = 0.1},
+    {element = "Co", unit = "ppm", cutoff = 0.1},
+    {element = "Cr", unit = "ppm", cutoff = 0.1},
+    {element = "Mg", unit = "ppm", cutoff = 0.1}
+]
+
+[[assays]]
+element = "Au"
+unit = "g/t" # This must be the unit used in the database for this element
+cutoffs = [0.1, 0.5, 0.1]
+
+secondaries = [
+    {element = "Ag", unit = "ppb", cutoff = 0.1},
+    {element = "As", unit = "ppm", cutoff = 0.1},
+    {element = "Cu", unit = "ppm", cutoff = 0.1},
+    {element = "Sb", unit = "ppm", cutoff = 0.1},
+]
+
+# Don't touch this
+[logging]
+report_errors = true
+log_level = 'ERROR_ONLY'
