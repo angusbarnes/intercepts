@@ -265,21 +265,20 @@ with open(filename, mode='w', newline='') as csvfile:
         # This simply is a list of sections from the hole which have contiguous data
         contiguous_interval_groups = focus_hole.group_contiguous_intervals()
 
-        intercepts = [] # This will end up with all notable intercepts after a cutoff is applied
         for grouped_interval in contiguous_interval_groups:
 
             # Get all intervals from the hole which are contiguous and are above a specified cutoff
             # This takes a list of intervals which are contigious and returns all subgroups of this interval
             # that match the filtering criteria. This means that we end up with a list of lists
-            intercepts += filter_group_by_cutoff(grouped_interval, ASSAY_UNIT_SELECT, 0.1)
+            intercepts = filter_group_by_cutoff(grouped_interval, ASSAY_UNIT_SELECT, 0.1)
 
-        # Here the intercept variable represents a list of IntervalData which have been judged to be both
-        # contiguous and above the cutoff threshold
-        for intercept in intercepts:
-            inter = calculate_intercept(intercept, ASSAY_UNIT_SELECT)
+            # Here the intercept variable represents a list of IntervalData which have been judged to be both
+            # contiguous and above the cutoff threshold
+            for intercept in intercepts:
+                inter = calculate_intercept(intercept, ASSAY_UNIT_SELECT)
 
-            writer.writerow([hole, ASSAY_UNIT_SELECT.element, ASSAY_UNIT_SELECT.base_unit, intercept[0].start(), intercept[0].start() + inter.distance, inter.to_string()])
-            file.write(hole + ": " + inter.to_string())
-            file.write('\n')
+                writer.writerow([hole, ASSAY_UNIT_SELECT.element, ASSAY_UNIT_SELECT.base_unit, intercept[0].start(), intercept[0].start() + inter.distance, inter.to_string()])
+                file.write(hole + ": " + inter.to_string())
+                file.write('\n')
 
 file.close()
