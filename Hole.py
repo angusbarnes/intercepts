@@ -21,6 +21,17 @@ class AssayType:
     
     def __str__(self) -> str:
         return f"{self.element} in {self.base_unit.name}"
+    
+@dataclass
+class Intercept:
+
+    assay: AssayType
+    concentration: float
+    distance: float
+    span: tuple[float, float]
+    
+    def to_string(self):
+        return f"{self.distance:.2f}m at {self.concentration:.3f} {self.assay.element} from {self.span[0]:.0f} m"
 
 @dataclass
 class IntervalData:

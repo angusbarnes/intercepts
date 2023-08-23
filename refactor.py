@@ -3,7 +3,7 @@ import pickle
 from typing import List
 import ElementParser
 import KnownElements
-from Hole import AssayType, AssayUnit, HoleData, IntervalData
+from Hole import *
 from config import config
 
 class MissingHoleDataException(Exception):
@@ -85,7 +85,7 @@ def remove_tail_below_threshold(array, assay, threshold):
     return array
 
 # contiguous_intervals represent the contiguous subsections of a hole
-def group_values(contiguous_intervals: List[IntervalData], assay: AssayType, cutoff) -> List[List[IntervalData]]:
+def filter_group_by_cutoff(contiguous_intervals: List[IntervalData], assay: AssayType, cutoff) -> List[List[IntervalData]]:
     groups = []
     current_group = []
     current_gaps  = 0
@@ -153,7 +153,7 @@ def count_lines_and_hash(file_name):
             line_count += chunk.count(b'\n')
             hasher.update(chunk)
     
-    return line_count+1, hasher.hexdigest()
+    return line_count, hasher.hexdigest()
 
 from tqdm import tqdm
 import os
@@ -181,7 +181,8 @@ else:
         header_cache = create_header_cache(header_row, ['From', 'To', 'SampleID', 'Hole number'])
         #print(header_cache)
 
-        for row in tqdm(spamreader, unit='Samples', total=loc):
+        # we use loc - 1 to account for the header row int the csv
+        for row in tqdm(spamreader, unit='Samples', total=loc - 1):
 
             holeID = row[HOLE_ID_COLUMN_NUMBER]
             if holeID not in data_table:
@@ -207,35 +208,78 @@ else:
 
 print(f"Found {len(data_table)} holes in CSV")
 
+def calculate_intercept(intercept_intervals: list[IntervalData], assay_type: AssayType):
+    ''' 
+    Calculate intercept takes a list of intervals and an assay type.
+    Based on this information, it calculates the concentration of the specified assay
+    across the total length of the intervals provided.
+
+    Returns: an Intercept() object representing this intercept
+    '''
+    concentration = 0
+    distance = 0
+    for interval in intercept:
+        concentration += interval.calculate_concentration_metres(assay_type)
+        distance += interval.get_length()
+
+    return Intercept(assay_type,  concentration/distance, distance, intercept[0].span)
+
+def convert_unit(value, from_unit, to_unit):
+    # Define conversion factors
+    conversion_factors = {
+        'ppm': 1,
+        'ppb': 1000,
+        '%': 10000,
+        'g/t': 1000000
+    }
+
+    # Check if units are valid
+    if from_unit not in conversion_factors or to_unit not in conversion_factors:
+        raise ValueError("Invalid units")
+
+    # Convert to PPM
+    ppm_value = value * conversion_factors[from_unit]
+
+    # Convert from PPM to the desired unit
+    result = ppm_value / conversion_factors[to_unit]
+
+    return result
+
+intercepts = []
 file = open("result.log", 'w')
 
 
-def calculate_intercept(grouped_intervals: list[list[IntervalData]], assay_type: AssayType):
-    for intercept in grouped_intervals:
-        concentration = 0
-        distance = 0
-        for interval in intercept:
-            concentration += interval.calculate_concentration_metres(assay_type)
-            distance += interval.get_length()
+import time
+current_time = time.strftime('%H-%M-%S')  # Current timestamp as YYYYMMDDHHMMSS
+filename = f'intercepts_{current_time}.csv'
 
-for hole in tqdm(data_table):
-    focus_hole = data_table[hole]
+with open(filename, mode='w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
 
-    groups = focus_hole.group_contiguous_intervals()
+    writer.writerow(['Hole', 'Primary Assay', 'Reported Unit', 'From', 'To', 'Primary Intercept', 'Cutoffs'])
 
-    test_groups = []
-    for group in groups:
-        test_groups += group_values(group, ASSAY_UNIT_SELECT, 0.1)
+    for hole in tqdm(data_table):
+        focus_hole = data_table[hole]
 
-    #print(f"Found {len(test_groups)} intervals:")
+        # Get a list containing groups of intervals which are contiguous in this hole
+        # This simply is a list of sections from the hole which have contiguous data
+        contiguous_interval_groups = focus_hole.group_contiguous_intervals()
 
-    for intercept in test_groups:
-        concentration = 0
-        distance = 0
-        for interval in intercept:
-            concentration += interval.calculate_concentration_metres(ASSAY_UNIT_SELECT)
-            distance += interval.get_length()
+        intercepts = [] # This will end up with all notable intercepts after a cutoff is applied
+        for grouped_interval in contiguous_interval_groups:
 
-        file.write((f"{hole}:   {distance}m at {concentration/distance:.2f} {ASSAY_UNIT_SELECT.base_unit.name} {ASSAY_UNIT_SELECT.element} from {intercept[0].start()} m\n"))
+            # Get all intervals from the hole which are contiguous and are above a specified cutoff
+            # This takes a list of intervals which are contigious and returns all subgroups of this interval
+            # that match the filtering criteria. This means that we end up with a list of lists
+            intercepts += filter_group_by_cutoff(grouped_interval, ASSAY_UNIT_SELECT, 0.1)
+
+        # Here the intercept variable represents a list of IntervalData which have been judged to be both
+        # contiguous and above the cutoff threshold
+        for intercept in intercepts:
+            inter = calculate_intercept(intercept, ASSAY_UNIT_SELECT)
+
+            writer.writerow([hole, ASSAY_UNIT_SELECT.element, ASSAY_UNIT_SELECT.base_unit, intercept[0].start(), intercept[0].start() + inter.distance, inter.to_string()])
+            file.write(hole + ": " + inter.to_string())
+            file.write('\n')
 
 file.close()
