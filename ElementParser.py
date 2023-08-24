@@ -21,13 +21,14 @@ class ElementNameRule(SyntaxRule):
         
         return ("symbol", identifier)
 
+# The order of these rules is very important
 rules = [
+    IgnoreRule(" _-\n\t"),
     WordRule("UNIT", "ppb", ignore_case=True),
     WordRule("UNIT", "ppt", ignore_case=True),
     WordRule("UNIT", "ppm", ignore_case=True),
     WordRule("UNIT", "g/t", ignore_case=True),
     CharacterRule("UNIT", "%"),
-    IgnoreRule(" _-\n\t"),
     ElementNameRule()
     #AlphaNumericRule()
 ]

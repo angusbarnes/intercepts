@@ -1,10 +1,42 @@
 import csv
 import pickle
+import traceback
 from typing import List
 import ElementParser
 import KnownElements
 from Hole import *
 from config import config
+import sys
+
+if '-recalc' in sys.argv:
+    config.settings.recalc = True
+else:
+    config.settings.recalc = False
+
+import logging
+
+log_level = logging.DEBUG
+
+if config.logging.log_level == "ERROR_ONLY":
+    log_level = logging.WARNING
+
+# Configure the logging settings
+logging.basicConfig(
+    level=logging.DEBUG,    # Set the minimum level for logging messages
+    format="%(asctime)s [%(levelname)s] %(message)s",  # Define the log message format
+    handlers=[
+        #logging.StreamHandler(),  # Send log messages to the console
+        logging.FileHandler("app.log", mode = 'w')  # Save log messages to a file
+    ]
+)
+
+# Custom exception handler function
+def custom_exception_handler(exc_type, exc_value, exc_traceback):
+    logging.error("An unhandled exception occurred:", exc_info=(exc_type, exc_value, exc_traceback))
+    print("".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+
+# Set the custom exception handler globally
+sys.excepthook = custom_exception_handler
 
 class MissingHoleDataException(Exception):
     def __init__(self, hole_id, message=None):
@@ -51,7 +83,7 @@ def construct_interval_from_csv_row(csv_data: str, header_cache: dict):
     try:
         span = (float(csv_data[get_index('From')]), float(csv_data[get_index('To')]))
     except ValueError as err:
-        raise MissingHoleDataException(csv_data[get_index(config.settings.hole_id_column_name)], f"No useable value for hole From and To values for sample ID: {csv_data[get_index('SampleID')]}")
+        raise MissingHoleDataException(csv_data[get_index(config.settings.hole_id_column_name)], f"No useable value for hole From and To values for sample ID: {csv_data[get_index(config.settings.sample_id_column_name)]}")
 
     assays = {}
     for key in header_cache:
@@ -84,8 +116,24 @@ def remove_tail_below_threshold(array, assay, threshold):
     array = array[:-tail_length]
     return array
 
+def calculate_intercept(intercept_intervals: list[IntervalData], assay_type: AssayType, co_analytes):
+    ''' 
+    Calculate intercept takes a list of intervals and an assay type.
+    Based on this information, it calculates the concentration of the specified assay
+    across the total length of the intervals provided.
+
+    Returns: an Intercept() object representing this intercept
+    '''
+    concentration = 0
+    distance = 0
+    for interval in intercept_intervals:
+        concentration += interval.calculate_concentration_metres(assay_type)
+        distance += interval.get_length()
+
+    return Intercept(assay_type,  concentration/distance, distance, intercept_intervals[0].span)
+
 # contiguous_intervals represent the contiguous subsections of a hole
-def filter_group_by_cutoff(contiguous_intervals: List[IntervalData], assay: AssayType, cutoff) -> List[List[IntervalData]]:
+def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], assay: AssayType, cutoff, co_analytes = None) -> List[List[IntervalData]]:
     groups = []
     current_group = []
     current_gaps  = 0
@@ -97,7 +145,7 @@ def filter_group_by_cutoff(contiguous_intervals: List[IntervalData], assay: Assa
         #print(f"Processing value: {value} from interval: {interval}")
 
         if value is not None and value < 0:
-            #print("WE HAVE NEGATIVE CONCENTRATIONS")
+            logging.critical(f"WE HAVE NEGATIVE CONCENTRATIONS. {interval}")
             pass
 
         if value == None:
@@ -114,7 +162,7 @@ def filter_group_by_cutoff(contiguous_intervals: List[IntervalData], assay: Assa
                 #print("decision 1 was made for value")
             else:
                 # Add the current group to the list of groups and start a new group
-                groups.append(remove_tail_below_threshold(current_group, assay, 0.1))
+                groups.append(calculate_intercept(remove_tail_below_threshold(current_group, assay, cutoff), assay, co_analytes))
                 current_group = [interval]
                 collecting = True
                 current_gaps = 0
@@ -128,7 +176,7 @@ def filter_group_by_cutoff(contiguous_intervals: List[IntervalData], assay: Assa
 
     # Add the last group to the list of groups
     if current_group:
-        groups.append(remove_tail_below_threshold(current_group, assay, 0.1))
+        groups.append(calculate_intercept(remove_tail_below_threshold(current_group, assay, cutoff), assay, co_analytes))
 
     return groups
 
@@ -155,75 +203,6 @@ def count_lines_and_hash(file_name):
     
     return line_count, hasher.hexdigest()
 
-from tqdm import tqdm
-import os
-
-HOLE_ID_COLUMN_NUMBER = 1
-ASSAY_UNIT_SELECT = AssayType('Cu', AssayUnit.Percent)
-
-header_cache = {}
-data_table: dict[str, HoleData] = {}
-
-file_name = config.settings.exported_data_path
-cache_location = config.settings.cache_location
-
-loc, hash = count_lines_and_hash(file_name)
-
-if os.path.exists(f"{cache_location}/{str(hash)}.dat"):
-    file = open(f"{cache_location}/{str(hash)}.dat", 'rb')
-    data_table = pickle.load(file)
-    file.close()
-else:
-    with open(file_name, newline='') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
-
-        header_row = next(spamreader) # Read the first line of the header file
-        header_cache = create_header_cache(header_row, ['From', 'To', 'SampleID', 'Hole number'])
-        #print(header_cache)
-
-        # we use loc - 1 to account for the header row int the csv
-        for row in tqdm(spamreader, unit='Samples', total=loc - 1):
-
-            holeID = row[HOLE_ID_COLUMN_NUMBER]
-            if holeID not in data_table:
-                #print(f"Found hole with ID: {holeID}")
-                data_table[holeID] = HoleData(holeID)
-
-            interval = None
-            try:
-                interval = construct_interval_from_csv_row(row, header_cache)
-            except MissingHoleDataException as err:
-                #print("NOTICE: " + err.get_exception_message())
-                continue
-            data_table[holeID].add(interval)
-        
-        # open a file, where you ant to store the data
-        file = open(f"{cache_location}/{str(hash)}.dat", 'wb')
-
-        # dump information to that file
-        pickle.dump(data_table, file)
-
-        # close the file
-        file.close()
-
-print(f"Found {len(data_table)} holes in CSV")
-
-def calculate_intercept(intercept_intervals: list[IntervalData], assay_type: AssayType):
-    ''' 
-    Calculate intercept takes a list of intervals and an assay type.
-    Based on this information, it calculates the concentration of the specified assay
-    across the total length of the intervals provided.
-
-    Returns: an Intercept() object representing this intercept
-    '''
-    concentration = 0
-    distance = 0
-    for interval in intercept:
-        concentration += interval.calculate_concentration_metres(assay_type)
-        distance += interval.get_length()
-
-    return Intercept(assay_type,  concentration/distance, distance, intercept[0].span)
-
 def convert_unit(value, from_unit, to_unit):
     # Define conversion factors
     conversion_factors = {
@@ -245,9 +224,82 @@ def convert_unit(value, from_unit, to_unit):
 
     return result
 
-intercepts = []
-file = open("result.log", 'w')
+def try_parse_to_assay_type(element: str, unit: str):
+    Unit = AssayUnit.PPM
 
+    if u := unit.lower() == '%':
+        Unit = AssayUnit.Percent
+    elif unit.lower() == 'ppm':
+        Unit = AssayUnit.PPM
+    elif unit.lower() == 'ppb':
+        Unit = AssayUnit.PPB
+    else:
+        raise ValueError(f"Error when loading co-analytes. Unsupported unit of type: {unit}")
+
+    return AssayType(element, Unit)
+
+from tqdm import tqdm
+import os
+
+HOLE_ID_COLUMN_NUMBER = 1
+Unit = AssayUnit.PPM
+if config.assays[0]['base_unit'].lower() == '%':
+    Unit = AssayUnit.Percent
+ASSAY_UNIT_SELECT = AssayType(config.assays[0]['element'], Unit)
+print(f"Selected unit: {config.assays[0]['element']} in {Unit}")
+
+header_cache = {}
+data_table: dict[str, HoleData] = {}
+
+file_name = config.settings.exported_data_path
+cache_location = config.settings.cache_location
+
+loc, hash = count_lines_and_hash(file_name)
+
+if config.settings.recalc == False and os.path.exists(f"{cache_location}/{str(hash)}.dat"):
+    file = open(f"{cache_location}/{str(hash)}.dat", 'rb')
+    data_table = pickle.load(file)
+    file.close()
+else:
+    with open(file_name, newline='') as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
+
+        header_row = next(spamreader) # Read the first line of the header file
+        header_cache = create_header_cache(header_row, ['From', 'To', config.settings.hole_id_column_name, config.settings.sample_id_column_name])
+        #print(header_cache)
+
+        # we use loc - 1 to account for the header row int the csv
+        for row in tqdm(spamreader, unit='Samples', total=loc - 1):
+
+            holeID = row[header_cache[config.settings.hole_id_column_name]]
+            if holeID not in data_table:
+                logging.debug(f"Found hole with ID: {holeID}")
+                data_table[holeID] = HoleData(holeID)
+
+            interval = None
+            try:
+                interval = construct_interval_from_csv_row(row, header_cache)
+            except MissingHoleDataException as err:
+                logging.warning("NOTICE: " + err.get_exception_message())
+                continue
+            data_table[holeID].add(interval)
+        
+        # open a file, where you ant to store the data
+        file = open(f"{cache_location}/{str(hash)}.dat", 'wb')
+
+        # dump information to that file
+        pickle.dump(data_table, file)
+
+        # close the file
+        file.close()
+
+print(f"Found {len(data_table)} holes in CSV")
+
+cutoffs = config.assays[0]['cutoffs']
+co_analytes = config.assays[0]['co_analytes']
+
+for co in co_analytes:
+    print(f"CO-ANALYTE: {try_parse_to_assay_type(co['element'], co['base_unit'])}")
 
 import time
 current_time = time.strftime('%H-%M-%S')  # Current timestamp as YYYYMMDDHHMMSS
@@ -256,7 +308,8 @@ filename = f'intercepts_{current_time}.csv'
 with open(filename, mode='w', newline='') as csvfile:
     writer = csv.writer(csvfile)
 
-    writer.writerow(['Hole', 'Primary Assay', 'Reported Unit', 'From', 'To', 'Primary Intercept', 'Cutoffs'])
+    header = ['Hole', 'Primary Assay',  'From', 'To', 'Cutoff', 'Primary Intercept']
+    writer.writerow(header)
 
     for hole in tqdm(data_table):
         focus_hole = data_table[hole]
@@ -270,15 +323,16 @@ with open(filename, mode='w', newline='') as csvfile:
             # Get all intervals from the hole which are contiguous and are above a specified cutoff
             # This takes a list of intervals which are contigious and returns all subgroups of this interval
             # that match the filtering criteria. This means that we end up with a list of lists
-            intercepts = filter_group_by_cutoff(grouped_interval, ASSAY_UNIT_SELECT, 0.1)
+            for cutoff in cutoffs:
+                intercepts = calculate_intercepts_from_group(grouped_interval, ASSAY_UNIT_SELECT, cutoff, co_analytes)
 
-            # Here the intercept variable represents a list of IntervalData which have been judged to be both
-            # contiguous and above the cutoff threshold
-            for intercept in intercepts:
-                inter = calculate_intercept(intercept, ASSAY_UNIT_SELECT)
+                # Here the intercept variable represents a list of IntervalData which have been judged to be both
+                # contiguous and above the cutoff threshold
+                for intercept in intercepts:
+                    #inter = calculate_intercept(intercept, ASSAY_UNIT_SELECT)
 
-                writer.writerow([hole, ASSAY_UNIT_SELECT.element, ASSAY_UNIT_SELECT.base_unit, intercept[0].start(), intercept[0].start() + inter.distance, inter.to_string()])
-                file.write(hole + ": " + inter.to_string())
-                file.write('\n')
-
-file.close()
+                    writer.writerow([
+                        hole, ASSAY_UNIT_SELECT.element, 
+                        intercept.span[0], intercept.span[0] + intercept.distance, 
+                        f"{cutoff} {ASSAY_UNIT_SELECT.base_unit.name} {ASSAY_UNIT_SELECT.element}", intercept.to_string()
+                    ])

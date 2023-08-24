@@ -31,7 +31,7 @@ class Intercept:
     span: tuple[float, float]
     
     def to_string(self):
-        return f"{self.distance:.2f}m at {self.concentration:.3f} {self.assay.element} from {self.span[0]:.0f} m"
+        return f"{self.distance:.2f}m at {self.concentration:.3f} {self.assay.base_unit.name} {self.assay.element} from {self.span[0]:.0f} m"
 
 @dataclass
 class IntervalData:
