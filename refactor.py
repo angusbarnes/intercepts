@@ -8,17 +8,12 @@ from Hole import *
 from config import config
 import sys
 
-if '-recalc' in sys.argv:
-    config.settings.recalc = True
-else:
-    config.settings.recalc = False
-
 import logging
 
 log_level = logging.DEBUG
 
-if config.logging.log_level == "ERROR_ONLY":
-    log_level = logging.WARNING
+# if config.logging.log_level == "ERROR_ONLY":
+#     log_level = logging.WARNING
 
 # Configure the logging settings
 logging.basicConfig(
@@ -34,7 +29,6 @@ logging.basicConfig(
 def custom_exception_handler(exc_type, exc_value, exc_traceback):
     logging.error("An unhandled exception occurred:", exc_info=(exc_type, exc_value, exc_traceback))
     print("".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
-
 # Set the custom exception handler globally
 sys.excepthook = custom_exception_handler
 
@@ -92,7 +86,8 @@ def construct_interval_from_csv_row(csv_data: str, header_cache: dict):
             # if the value cannot be converted (IE it does not exist for this interval)
             # we do not add it
             try:      
-                assays[key] = float(csv_data[get_index(key)])
+                assays[key.get_unique_id()] = float(csv_data[get_index(key)])
+                logging.debug(f"Key created for: {key.get_unique_id()}")
                 #print(f"Inserting Value: {csv_data[get_index(key)]} into key: {key}, for hole: {csv_data[get_index('Hole number')]}")
             except ValueError:
                 continue
@@ -126,14 +121,23 @@ def calculate_intercept(intercept_intervals: list[IntervalData], assay_type: Ass
     '''
     concentration = 0
     distance = 0
+    coans = {}
+    for co in co_analytes:
+        coans[co.get_unique_id()] = 0
+
     for interval in intercept_intervals:
         concentration += interval.calculate_concentration_metres(assay_type)
         distance += interval.get_length()
 
-    return Intercept(assay_type,  concentration/distance, distance, intercept_intervals[0].span)
+        for co in co_analytes:
+            try:
+                coans[co.get_unique_id()] += interval.calculate_concentration_metres(co)
+            except: continue
+
+    return Intercept(assay_type,  concentration/distance, distance, intercept_intervals[0].span, coans)
 
 # contiguous_intervals represent the contiguous subsections of a hole
-def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], assay: AssayType, cutoff, co_analytes = None) -> List[List[IntervalData]]:
+def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], assay: AssayType, cutoff: float, co_analytes = None) -> List[List[IntervalData]]:
     groups = []
     current_group = []
     current_gaps  = 0
@@ -206,10 +210,10 @@ def count_lines_and_hash(file_name):
 def convert_unit(value, from_unit, to_unit):
     # Define conversion factors
     conversion_factors = {
-        'ppm': 1,
-        'ppb': 1000,
-        '%': 10000,
-        'g/t': 1000000
+        AssayUnit.PPM: 1,
+        AssayUnit.PPB: 1000,
+        AssayUnit.Percent: 10000,
+        AssayUnit.GPT: 1
     }
 
     # Check if units are valid
@@ -224,24 +228,39 @@ def convert_unit(value, from_unit, to_unit):
 
     return result
 
-def try_parse_to_assay_type(element: str, unit: str):
+def unit_text_to_type(unit: str):
     Unit = AssayUnit.PPM
-
-    if u := unit.lower() == '%':
+    unit = unit.lower()
+    if unit == '%':
         Unit = AssayUnit.Percent
-    elif unit.lower() == 'ppm':
+    elif unit == 'ppm':
         Unit = AssayUnit.PPM
-    elif unit.lower() == 'ppb':
+    elif unit == 'ppb':
         Unit = AssayUnit.PPB
+    elif unit == 'g/t':
+        Unit = AssayUnit.GPT
     else:
         raise ValueError(f"Error when loading co-analytes. Unsupported unit of type: {unit}")
+    
+    return Unit
 
-    return AssayType(element, Unit)
+def try_parse_to_assay_type(element: str, base_unit: str, reported_unit: str):
+
+    base = unit_text_to_type(base_unit)
+    reported = unit_text_to_type(reported_unit)
+
+    return AssayType(element, base, reported)
 
 from tqdm import tqdm
 import os
 
-HOLE_ID_COLUMN_NUMBER = 1
+if '-recalc' in sys.argv:
+    config.settings.recalc = True
+else:
+    config.settings.recalc = False
+
+
+
 Unit = AssayUnit.PPM
 if config.assays[0]['base_unit'].lower() == '%':
     Unit = AssayUnit.Percent
@@ -249,15 +268,15 @@ ASSAY_UNIT_SELECT = AssayType(config.assays[0]['element'], Unit)
 print(f"Selected unit: {config.assays[0]['element']} in {Unit}")
 
 header_cache = {}
-data_table: dict[str, HoleData] = {}
+data_table: dict[int, HoleData] = {}
 
 file_name = config.settings.exported_data_path
 cache_location = config.settings.cache_location
 
-loc, hash = count_lines_and_hash(file_name)
+loc, hash_value = count_lines_and_hash(file_name)
 
-if config.settings.recalc == False and os.path.exists(f"{cache_location}/{str(hash)}.dat"):
-    file = open(f"{cache_location}/{str(hash)}.dat", 'rb')
+if config.settings.recalc == False and os.path.exists(f"{cache_location}/{str(hash_value)}.dat"):
+    file = open(f"{cache_location}/{str(hash_value)}.dat", 'rb')
     data_table = pickle.load(file)
     file.close()
 else:
@@ -280,12 +299,11 @@ else:
             try:
                 interval = construct_interval_from_csv_row(row, header_cache)
             except MissingHoleDataException as err:
-                logging.warning("NOTICE: " + err.get_exception_message())
                 continue
             data_table[holeID].add(interval)
         
         # open a file, where you ant to store the data
-        file = open(f"{cache_location}/{str(hash)}.dat", 'wb')
+        file = open(f"{cache_location}/{str(hash_value)}.dat", 'wb')
 
         # dump information to that file
         pickle.dump(data_table, file)
@@ -295,20 +313,34 @@ else:
 
 print(f"Found {len(data_table)} holes in CSV")
 
-cutoffs = config.assays[0]['cutoffs']
-co_analytes = config.assays[0]['co_analytes']
+assay_list = []
+for assay in config.assays:
+    element = assay['element']
+    base_unit = assay['base_unit']
+    reported_unit = assay['reported_unit']
+    cutoffs = assay['cutoffs']
+    
+    primary = try_parse_to_assay_type(element, base_unit, reported_unit)
 
-for co in co_analytes:
-    print(f"CO-ANALYTE: {try_parse_to_assay_type(co['element'], co['base_unit'])}")
+    co_analytes = assay['co_analytes']
+    analytes = []
+    for co in co_analytes:
+        analytes.append(try_parse_to_assay_type(co['element'], co['base_unit'], co['reported_unit']))
 
+    assay_list.append((primary, cutoffs, analytes))
+
+print(assay_list)
+cutoffs = [0.1, 0.5, 1]
 import time
 current_time = time.strftime('%H-%M-%S')  # Current timestamp as YYYYMMDDHHMMSS
 filename = f'intercepts_{current_time}.csv'
 
+test_dict = {hash(ASSAY_UNIT_SELECT): 'it works'}
+
 with open(filename, mode='w', newline='') as csvfile:
     writer = csv.writer(csvfile)
 
-    header = ['Hole', 'Primary Assay',  'From', 'To', 'Cutoff', 'Primary Intercept']
+    header = ['Hole', 'Primary Assay',  'From', 'To', 'Cutoff', 'Primary Intercept', 'Co-analytes']
     writer.writerow(header)
 
     for hole in tqdm(data_table):
@@ -323,16 +355,21 @@ with open(filename, mode='w', newline='') as csvfile:
             # Get all intervals from the hole which are contiguous and are above a specified cutoff
             # This takes a list of intervals which are contigious and returns all subgroups of this interval
             # that match the filtering criteria. This means that we end up with a list of lists
-            for cutoff in cutoffs:
-                intercepts = calculate_intercepts_from_group(grouped_interval, ASSAY_UNIT_SELECT, cutoff, co_analytes)
+            for assay, cutoffs, coans in assay_list:
+                for cutoff in cutoffs:
+                    intercepts = calculate_intercepts_from_group(grouped_interval, assay, cutoff, coans)
 
-                # Here the intercept variable represents a list of IntervalData which have been judged to be both
-                # contiguous and above the cutoff threshold
-                for intercept in intercepts:
-                    #inter = calculate_intercept(intercept, ASSAY_UNIT_SELECT)
-
-                    writer.writerow([
-                        hole, ASSAY_UNIT_SELECT.element, 
-                        intercept.span[0], intercept.span[0] + intercept.distance, 
-                        f"{cutoff} {ASSAY_UNIT_SELECT.base_unit.name} {ASSAY_UNIT_SELECT.element}", intercept.to_string()
-                    ])
+                    # Here the intercept variable represents a list of IntervalData which have been judged to be both
+                    # contiguous and above the cutoff threshold
+                    for intercept in intercepts:
+                        #inter = calculate_intercept(intercept, ASSAY_UNIT_SELECT)
+                        
+                        co_string = ""
+                        for co in coans:
+                            co_string += f"{co.element}: {intercept.co_analytes[co.get_unique_id()]/intercept.distance:.2f} {co.base_unit.name},  "
+                        writer.writerow([
+                            hole, assay.element, 
+                            intercept.span[0], intercept.span[0] + intercept.distance, 
+                            f"{cutoff} {assay.base_unit.name} {assay.element}", intercept.to_string(),
+                            co_string
+                        ])

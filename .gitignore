@@ -7,6 +7,9 @@ cache/
 # C extensions
 *.so
 
+refactor.build/
+refactor.dist/
+
 # Distribution / packaging
 .Python
 build/

@@ -45,7 +45,7 @@ cache_location = './cache'
 # This is the unit you want the output reported in.
 # A conversion will be performed automatically
 
-	reported_unit = "ppm"
+	reported_unit = "%"
 
 # The cutoff values to be used to calculate intercepts.
 # THIS MUST BE IN TERMS OF THE BASE UNIT SPECIFIED ABOVE
@@ -61,7 +61,6 @@ co_analytes = [
     {element = "Co", base_unit = "ppm", reported_unit = "ppm"},
     {element = "Zn", base_unit = "ppm", reported_unit = "ppm"}
 ]
-
 # Don't touch this
 [logging]
 report_errors = true
