@@ -313,14 +313,22 @@ else:
 
 print(f"Found {len(data_table)} holes in CSV")
 
+import tomllib
+queries = None
+with open('queries.toml', 'rb') as queries_file:
+    queries = tomllib.load(queries_file)
+
 assay_list = []
-for assay in config.assays:
+for assay in list(queries.values()):
     element = assay['element']
     base_unit = assay['base_unit']
     reported_unit = assay['reported_unit']
     cutoffs = assay['cutoffs']
     
     primary = try_parse_to_assay_type(element, base_unit, reported_unit)
+
+    for i, cutoff in enumerate(cutoffs):
+        cutoffs[i] = convert_unit(cutoff, primary.reported_unit, primary.base_unit)
 
     co_analytes = assay['co_analytes']
     analytes = []
@@ -337,13 +345,23 @@ filename = f'intercepts_{current_time}.csv'
 
 test_dict = {hash(ASSAY_UNIT_SELECT): 'it works'}
 
+if config.settings.hole_selections == ['*']:
+    holes_to_calc = list(data_table.keys())
+else:
+    holes_to_calc = config.settings.hole_selections
+
 with open(filename, mode='w', newline='') as csvfile:
     writer = csv.writer(csvfile)
 
     header = ['Hole', 'Primary Assay',  'From', 'To', 'Cutoff', 'Primary Intercept', 'Co-analytes']
     writer.writerow(header)
 
-    for hole in tqdm(data_table):
+    for hole in tqdm(holes_to_calc):
+
+        if hole not in data_table:
+            print(f"Could not find hole: {hole} in provided data set")
+            continue
+
         focus_hole = data_table[hole]
 
         # Get a list containing groups of intervals which are contiguous in this hole

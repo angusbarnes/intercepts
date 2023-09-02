@@ -13,7 +13,7 @@ co_analytes = [
 
 [nickle_assay]
 element = "Ni"
-base_unit = "ppm" 
+base_unit = "ppm"
 reported_unit = "%"
 cutoffs = [0.1, 0.5, 1]
 
