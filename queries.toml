@@ -1,0 +1,38 @@
+[copper_assay]
+element = "Cu"
+base_unit = "%" 
+reported_unit = "%"
+cutoffs = [0.1, 0.5, 1]
+
+co_analytes = [
+    {element = "Au", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Ag", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Co", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Zn", base_unit = "ppm", reported_unit = "ppm"}
+]
+
+[nickle_assay]
+element = "Ni"
+base_unit = "ppm" 
+reported_unit = "%"
+cutoffs = [0.1, 0.5, 1]
+
+co_analytes = [
+    {element = "Cu", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Co", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Cr", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Mg", base_unit = "ppm", reported_unit = "ppm"}
+]
+
+[gold_assay]
+element = "Au"
+base_unit = "ppm" 
+reported_unit = "g/t"
+cutoffs = [0.1, 0.5, 1]
+
+co_analytes = [
+    {element = "Ag", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "As", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Cu", base_unit = "ppm", reported_unit = "ppm"},
+    {element = "Sb", base_unit = "ppm", reported_unit = "ppm"}
+]

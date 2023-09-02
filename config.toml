@@ -17,6 +17,8 @@
 # Leave as ['*'] to calculate all holes
 	
 	hole_selections = ['*']
+	queries_to_run = ['*']
+	seperate_assay_files = false
 
 # Path to the main data CSV. This will generally be the
 # rank 1 export from the main database
