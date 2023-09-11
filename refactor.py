@@ -87,7 +87,6 @@ def construct_interval_from_csv_row(csv_data: str, header_cache: dict):
             # we do not add it
             try:      
                 assays[key.get_unique_id()] = float(csv_data[get_index(key)])
-                logging.debug(f"Key created for: {key.get_unique_id()}")
                 #print(f"Inserting Value: {csv_data[get_index(key)]} into key: {key}, for hole: {csv_data[get_index('Hole number')]}")
             except ValueError:
                 continue
