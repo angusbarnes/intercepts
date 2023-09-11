@@ -70,6 +70,12 @@ class Intercept:
     span: tuple[float, float]
     co_analytes: dict[AssayType, float]
     
+    def get_unit_as_reported(self):
+        return self.assay.reported_unit_text()
+    
+    def get_concentration_as_reported(self):
+        return self.assay.convert_to_reported_unit(self.concentration)
+
     def to_string(self):
         return f"{self.distance:.2f}m at {self.assay.convert_to_reported_unit(self.concentration):.3f} {self.assay.reported_unit_text()} {self.assay.element} from {self.span[0]:.0f} m"
 

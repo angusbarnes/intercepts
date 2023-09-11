@@ -148,7 +148,7 @@ def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], as
         #print(f"Processing value: {value} from interval: {interval}")
 
         if value is not None and value < 0:
-            logging.critical(f"WE HAVE NEGATIVE CONCENTRATIONS. {interval}")
+            #logging.critical(f"WE HAVE NEGATIVE CONCENTRATIONS. {interval}")
             pass
 
         if value == None:
@@ -349,10 +349,12 @@ if config.settings.hole_selections == ['*']:
 else:
     holes_to_calc = config.settings.hole_selections
 
+print(list(data_table.keys()))
+
 with open(filename, mode='w', newline='') as csvfile:
     writer = csv.writer(csvfile)
 
-    header = ['Hole', 'Primary Assay',  'From', 'To', 'Cutoff', 'Primary Intercept', 'Co-analytes']
+    header = ['Hole', 'Primary Analyte', 'Cutoff', 'Cutoff Unit', 'From', 'To', 'Interval', 'Primary Intercept', 'Intercept Label', 'Co Analytes']
     writer.writerow(header)
 
     for hole in tqdm(holes_to_calc):
@@ -383,10 +385,12 @@ with open(filename, mode='w', newline='') as csvfile:
                         
                         co_string = ""
                         for co in coans:
-                            co_string += f"{co.element}: {intercept.co_analytes[co.get_unique_id()]/intercept.distance:.2f} {co.base_unit.name},  "
+                            co_string += f"{intercept.co_analytes[co.get_unique_id()]/intercept.distance:.2f}{co.reported_unit_text()} {co.element},  "
+
+                        # header = ['Hole', 'Primary Analyte', 'Cutoff', 'Cutoff Unit', 'From', 'To', 'Interval', 'Primary Intercept', 'Intercept Label', 'Co Analytes']
                         writer.writerow([
-                            hole, assay.element, 
-                            intercept.span[0], intercept.span[0] + intercept.distance, 
-                            f"{cutoff} {assay.base_unit.name} {assay.element}", intercept.to_string(),
+                            hole, assay.element, intercept.assay.convert_to_reported_unit(cutoff), assay.reported_unit_text(),
+                            intercept.span[0], intercept.span[0] + intercept.distance, intercept.distance,
+                            intercept.get_concentration_as_reported(), intercept.to_string(),
                             co_string
                         ])

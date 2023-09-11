@@ -1,6 +1,6 @@
 [copper_assay]
 element = "Cu"
-base_unit = "%" 
+base_unit = "ppm" 
 reported_unit = "%"
 cutoffs = [0.1, 0.5, 1]
 
