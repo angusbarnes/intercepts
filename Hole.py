@@ -42,6 +42,9 @@ class AssayType:
         # Check if units are valid
         if self.base_unit not in conversion_factors or self.reported_unit not in conversion_factors:
             raise ValueError("Invalid units")
+        
+        if self.base_unit == self.reported_unit:
+            return value
 
         # Convert to PPM
         ppm_value = value * conversion_factors[self.base_unit]
@@ -130,7 +133,7 @@ class HoleData:
 
         return sorted(self.intervals, key = lambda x: x.start())
     
-    def group_contiguous_intervals(self) -> List[IntervalData]:
+    def group_contiguous_intervals(self) -> List[List[IntervalData]]:
         groups = []
         current_group = []
 

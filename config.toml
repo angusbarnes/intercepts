@@ -35,34 +35,6 @@
 # Don't touch unless you know what you are doing
 cache_location = './cache'
 
-[[assays]]
-	element = "Cu"
-
-# This must be the unit used in the database for this element.
-# If the database contains multiple units for the same element,
-# choose the unit you consider to be the most accurate/reliable
-	
-	base_unit = "%" 
-
-# This is the unit you want the output reported in.
-# A conversion will be performed automatically
-
-	reported_unit = "%"
-
-# The cutoff values to be used to calculate intercepts.
-# THIS MUST BE IN TERMS OF THE BASE UNIT SPECIFIED ABOVE
-
-	cutoffs = [0.1, 0.5, 1]
-
-# This is a list of the secondary elements you would like to
-# have calculated against the primary
-
-co_analytes = [
-    {element = "Au", base_unit = "ppm", reported_unit = "ppm"},
-    {element = "Ag", base_unit = "ppm", reported_unit = "ppm"},
-    {element = "Co", base_unit = "ppm", reported_unit = "ppm"},
-    {element = "Zn", base_unit = "ppm", reported_unit = "ppm"}
-]
 # Don't touch this
 [logging]
 report_errors = true

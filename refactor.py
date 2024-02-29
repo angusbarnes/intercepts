@@ -259,58 +259,36 @@ else:
     config.settings.recalc = False
 
 
-
-Unit = AssayUnit.PPM
-if config.assays[0]['base_unit'].lower() == '%':
-    Unit = AssayUnit.Percent
-ASSAY_UNIT_SELECT = AssayType(config.assays[0]['element'], Unit)
-print(f"Selected unit: {config.assays[0]['element']} in {Unit}")
-
 header_cache = {}
 data_table: dict[int, HoleData] = {}
 
 file_name = config.settings.exported_data_path
-cache_location = config.settings.cache_location
 
 loc, hash_value = count_lines_and_hash(file_name)
 
-if config.settings.recalc == False and os.path.exists(f"{cache_location}/{str(hash_value)}.dat"):
-    file = open(f"{cache_location}/{str(hash_value)}.dat", 'rb')
-    data_table = pickle.load(file)
-    file.close()
-else:
-    with open(file_name, newline='') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
 
-        header_row = next(spamreader) # Read the first line of the header file
-        header_cache = create_header_cache(header_row, ['From', 'To', config.settings.hole_id_column_name, config.settings.sample_id_column_name])
-        #print(header_cache)
+with open(file_name, newline='') as csvfile:
+    spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
 
-        # we use loc - 1 to account for the header row int the csv
-        for row in tqdm(spamreader, unit='Samples', total=loc - 1):
+    header_row = next(spamreader) # Read the first line of the header file
+    header_cache = create_header_cache(header_row, ['From', 'To', config.settings.hole_id_column_name, config.settings.sample_id_column_name])
+    #print(header_cache)
 
-            holeID = row[header_cache[config.settings.hole_id_column_name]]
-            if holeID not in data_table:
-                logging.debug(f"Found hole with ID: {holeID}")
-                data_table[holeID] = HoleData(holeID)
+    # we use loc - 1 to account for the header row int the csv
+    for row in tqdm(spamreader, unit='Samples', total=loc - 1):
 
-            interval = None
-            try:
-                interval = construct_interval_from_csv_row(row, header_cache)
-            except MissingHoleDataException as err:
-                continue
-            data_table[holeID].add(interval)
-        
-        # open a file, where you ant to store the data
-        file = open(f"{cache_location}/{str(hash_value)}.dat", 'wb')
+        holeID = row[header_cache[config.settings.hole_id_column_name]]
+        if holeID not in data_table:
+            logging.debug(f"Found hole with ID: {holeID}")
+            data_table[holeID] = HoleData(holeID)
 
-        # dump information to that file
-        pickle.dump(data_table, file)
+        interval = None
+        try:
+            interval = construct_interval_from_csv_row(row, header_cache)
+        except MissingHoleDataException as err:
+            continue
+        data_table[holeID].add(interval)
 
-        # close the file
-        file.close()
-
-print(f"Found {len(data_table)} holes in CSV")
 
 import tomllib
 queries = None
@@ -337,12 +315,9 @@ for assay in list(queries.values()):
     assay_list.append((primary, cutoffs, analytes))
 
 print(assay_list)
-cutoffs = [0.1, 0.5, 1]
 import time
 current_time = time.strftime('%H-%M-%S')  # Current timestamp as YYYYMMDDHHMMSS
 filename = f'intercepts_{current_time}.csv'
-
-test_dict = {hash(ASSAY_UNIT_SELECT): 'it works'}
 
 if config.settings.hole_selections == ['*']:
     holes_to_calc = list(data_table.keys())
@@ -352,7 +327,7 @@ else:
 print(list(data_table.keys()))
 
 with open(filename, mode='w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
+    writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
 
     header = ['Hole', 'Primary Analyte', 'Cutoff', 'Cutoff Unit', 'From', 'To', 'Interval', 'Primary Intercept', 'Intercept Label', 'Co Analytes']
     writer.writerow(header)
@@ -385,12 +360,12 @@ with open(filename, mode='w', newline='') as csvfile:
                         
                         co_string = ""
                         for co in coans:
-                            co_string += f"{intercept.co_analytes[co.get_unique_id()]/intercept.distance:.2f}{co.reported_unit_text()} {co.element},  "
+                            co_string += f"{co.convert_to_reported_unit(intercept.co_analytes[co.get_unique_id()])/intercept.distance:.2f}{co.reported_unit_text()} {co.element},  "
 
                         # header = ['Hole', 'Primary Analyte', 'Cutoff', 'Cutoff Unit', 'From', 'To', 'Interval', 'Primary Intercept', 'Intercept Label', 'Co Analytes']
                         writer.writerow([
                             hole, assay.element, intercept.assay.convert_to_reported_unit(cutoff), assay.reported_unit_text(),
                             intercept.span[0], intercept.span[0] + intercept.distance, intercept.distance,
-                            intercept.get_concentration_as_reported(), intercept.to_string(),
+                            round(intercept.get_concentration_as_reported(),3), intercept.to_string(),
                             co_string
                         ])
