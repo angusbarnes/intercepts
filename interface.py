@@ -2,7 +2,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 import toml
 import os
-
+import threading
+import time
 
 CONFIG_PATH = 'config.toml'
 ASSAY_CONFIG_PATH = 'assays.toml'
@@ -40,6 +41,38 @@ class ConfigEditor:
         self.build_settings_tab()
         self.build_assay_tab()
         self.load_config()
+
+        self.run_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.run_tab, text="Run")
+        self.build_run_tab()
+
+
+    def build_run_tab(self):
+        frame = ttk.Frame(self.run_tab, padding=10)
+        frame.pack(fill="both", expand=True)
+
+        # File location
+        ttk.Label(frame, text="Save File Location:").pack(anchor="w")
+        self.output_path_var = tk.StringVar()
+        output_frame = ttk.Frame(frame)
+        output_frame.pack(fill="x", pady=5)
+
+        output_entry = ttk.Entry(output_frame, textvariable=self.output_path_var)
+        output_entry.pack(side="left", fill="x", expand=True)
+
+        def choose_output_file():
+            path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+            if path:
+                self.output_path_var.set(path)
+
+        ttk.Button(output_frame, text="Browse...", command=choose_output_file).pack(side="left")
+
+        # Run button
+        ttk.Button(frame, text="Run", command=self.start_run_process).pack(pady=10)
+
+        # Progress bar
+        self.progress = ttk.Progressbar(frame, mode="determinate")
+        self.progress.pack(fill="x", pady=10)
 
     def build_settings_tab(self):
         frm = ttk.Frame(self.settings_frame)
@@ -110,6 +143,26 @@ class ConfigEditor:
         btn_frame.pack(pady=(10, 0))
         ttk.Button(btn_frame, text="Load", command=self.load_config).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Save", command=self.save_config).pack(side=tk.LEFT, padx=5)
+
+
+    def start_run_process(self):
+        output_path = self.output_path_var.get()
+        if not output_path:
+            messagebox.showwarning("Missing Output", "Please select a save file location first.")
+            return
+
+        # Reset progress
+        self.progress["value"] = 0
+        self.progress["maximum"] = 100
+
+        # Run the long process in a thread
+        threading.Thread(target=self.run_long_task, daemon=True).start()
+
+    def run_long_task(self):
+        """Simulate a long-running operation with progress bar update."""
+        for i in range(101):
+            time.sleep(0.1)  # Replace this with real work
+            self.progress.after(0, lambda val=i: self.progress.configure(value=val))
 
 
 
@@ -210,6 +263,8 @@ class ConfigEditor:
         else:
             self.assay_data = {}
 
+        self.render_assays()
+
 
         s = self.data['settings']
 
@@ -229,7 +284,7 @@ class ConfigEditor:
         self.entries['cache_location'].delete(0, tk.END)
         self.entries['cache_location'].insert(0, s.get('cache_location', './cache'))
 
-    def save_config(self):
+    def save_config(self, silent=True):
         s = self.data['settings']
         s['seperate_assay_files'] = self.entries['seperate_assay_files'].get()
         s['exported_data_path'] = self.entries['exported_data_path'].get()
@@ -243,7 +298,8 @@ class ConfigEditor:
         with open(ASSAY_CONFIG_PATH, 'w') as f:
             toml.dump(self.assay_data, f)
 
-        messagebox.showinfo("Success", f"Configuration saved to {CONFIG_PATH}.")
+        if not silent:
+            messagebox.showinfo("Success", f"Configuration saved.")
 
 
 if __name__ == '__main__':

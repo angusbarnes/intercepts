@@ -1,41 +1,12 @@
-# This is a TOML file
-# Lines starting with a # are comments and do not affect
-# anything. They are simply notes.
-
-# Some things you should know about TOML:
-#       - Text fields must be wrapped in quotes: 'text'
-#       - Lists get wrapped in square brackets and items
-#         in them are seperated by commas
-# list_of_text_fields = ['example', 'text']
-
-# WHEN EDITING THIS FILE, ONLY EDIT THINGS ON THE RIGHT
-# SIDE OF AN ASSIGNMENT (ONLY THE STUFF AFTER AN EQUALS SIGN)
-
 [settings]
-# Provide a list of holes to evaluate
-# Eg; hole_selections = ['CANDD017', 'CANDD018']
-# Leave as ['*'] to calculate all holes
-	
-	hole_selections = ['*']
-	queries_to_run = ['*']
-	seperate_assay_files = false
+hole_selections = [ "*",]
+queries_to_run = [ "*",]
+seperate_assay_files = false
+exported_data_path = "Drilling_Samples_R1.csv"
+sample_id_column_name = "SampleID"
+hole_id_column_name = "Hole number"
+cache_location = "./cache"
 
-# Path to the main data CSV. This will generally be the
-# rank 1 export from the main database
-
-	exported_data_path = 'Drilling_Samples_R1.csv'
-
-# The column names of some key field as described in
-# the specified spreadsheet
-
-	sample_id_column_name = 'SampleID'
-	hole_id_column_name = 'Hole number'
-
-# The location to store a database cache
-# Don't touch unless you know what you are doing
-cache_location = './cache'
-
-# Don't touch this
 [logging]
 report_errors = true
-log_level = 'ERROR_ONLY'
+log_level = "ERROR_ONLY"
