@@ -269,7 +269,7 @@ class ConfigEditor:
         for widget in self.assay_list_frame.winfo_children():
             widget.destroy()
 
-        for assay_name in sorted(k for k in self.assay_data if k.endswith('_assay')):
+        for assay_name in sorted(self.assay_data):
             frame = ttk.LabelFrame(self.assay_list_frame, text=assay_name)
             frame.pack(fill='x', padx=10, pady=5)
 
