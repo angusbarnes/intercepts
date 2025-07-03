@@ -6,6 +6,9 @@ exported_data_path = "Drilling_Samples_R1.csv"
 sample_id_column_name = "SampleID"
 hole_id_column_name = "Hole number"
 cache_location = "./cache"
+internal_dilution_intervals = 6
+from_column_name = "From"
+to_column_name = "To"
 
 [logging]
 report_errors = true

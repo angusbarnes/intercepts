@@ -55,7 +55,7 @@ def perform_analysis(data_table, assay_list, filename, holes_to_calc):
         header = ['Hole', 'Primary Analyte', 'Cutoff', 'Cutoff Unit', 'From', 'To', 'Interval', 'Primary Intercept', 'Intercept Label', 'Co Analytes']
         writer.writerow(header)
 
-        for hole in tqdm(holes_to_calc):
+        for hole in holes_to_calc:
             analyse_hole(hole, writer, data_table, assay_list)
 
 
@@ -66,11 +66,11 @@ def build_data_table(file_name, loc, update_progress=None):
         spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
 
         header_row = next(spamreader) # Read the first line of the header file
-        header_cache = create_header_cache(header_row, ['From', 'To', config.settings.hole_id_column_name, config.settings.sample_id_column_name])
+        header_cache = create_header_cache(header_row, [config.settings.from_column_name, config.settings.to_column_name, config.settings.hole_id_column_name, config.settings.sample_id_column_name])
     #print(header_cache)
 
     # we use loc - 1 to account for the header row int the csv
-        for row in tqdm(spamreader, unit='Samples', total=loc - 1):
+        for row in spamreader:
             holeID = row[header_cache[config.settings.hole_id_column_name]]
             if holeID not in data_table:
                 logging.debug(f"Found hole with ID: {holeID}")

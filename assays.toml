@@ -73,3 +73,18 @@ element = "Sb"
 base_unit = "ppm"
 reported_unit = "ppm"
 
+[lead_assay]
+element = "Pb"
+base_unit = "ppm"
+reported_unit = "ppm"
+cutoffs = [ 0.1, 0.5, 1.0,]
+[[lead_assay.co_analytes]]
+element = "Ag"
+base_unit = "ppm"
+reported_unit = "ppm"
+
+[[lead_assay.co_analytes]]
+element = "Au"
+base_unit = "ppm"
+reported_unit = "ppm"
+

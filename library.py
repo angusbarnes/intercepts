@@ -121,7 +121,7 @@ def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], as
         if value >= cutoff:
             
             # Check if the current group is empty or has less than two wildcard values
-            if not current_group or current_gaps <= 2:
+            if not current_group or current_gaps <= config.settings.internal_dilution_intervals:
                 current_group.append(interval)
                 collecting = True
                 #print("decision 1 was made for value")

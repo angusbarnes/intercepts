@@ -24,5 +24,16 @@ with open('config.toml', 'rb') as file:
         else:
             setattr(config, section, obj[section])
 
+def force_reload_global_config():
+    global config
+    with open('config.toml', 'rb') as file:
+        obj = tomllib.load(file)
+        for section in obj:
+            if type(obj[section]) == dict:
+                set_conf_or_branch(config, obj[section], section)   
+            else:
+                setattr(config, section, obj[section])
+
+
 if __name__ == '__main__':
     print(config.assays)
