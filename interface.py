@@ -2,6 +2,7 @@ import csv
 from config import config, force_reload_global_config
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
+import tkinter.font as tkFont
 import tomllib
 import toml
 import os
@@ -12,6 +13,8 @@ from tqdm import tqdm
 
 from library import convert_unit, count_lines_and_hash, try_parse_to_assay_type
 from refactor import analyse_hole, build_data_table
+
+
 
 CONFIG_PATH = 'config.toml'
 ASSAY_CONFIG_PATH = 'assays.toml'
@@ -32,7 +35,7 @@ VALID_ELEMENTS = {
 
 
 class ConfigEditor:
-    def __init__(self, root):
+    def __init__(self, root, font):
         self.root = root
         self.root.title("TOML Configuration Editor")
         self.data = {}
@@ -42,6 +45,8 @@ class ConfigEditor:
         self.notebook = ttk.Notebook(root)
         self.settings_frame = ttk.Frame(self.notebook)
         self.assay_frame = ttk.Frame(self.notebook)
+
+        self.font = font
 
         self.notebook.add(self.settings_frame, text='Settings')
         self.notebook.add(self.assay_frame, text='Assays')
@@ -62,7 +67,7 @@ class ConfigEditor:
         frame.pack(fill="both", expand=True)
 
         # File location
-        ttk.Label(frame, text="Save File Location:").pack(anchor="w")
+        ttk.Label(frame, text="Save File Location:", font=self.font).pack(anchor="w")
         self.output_path_var = tk.StringVar()
         output_frame = ttk.Frame(frame)
         output_frame.pack(fill="x", pady=5)
@@ -318,7 +323,7 @@ class ConfigEditor:
         self.assay_list_frame.pack(fill='both', expand=True)
 
         self.assay_controls = ttk.Frame(self.assay_frame)
-        self.assay_controls.pack(fill='x', pady=5)
+        self.assay_controls.pack(fill='x', pady=5, expand=True)
 
         ttk.Button(self.assay_controls, text="Add Assay", command=self.add_assay_dialog).pack(side='left')
 
@@ -518,13 +523,13 @@ class ConfigEditor:
         # Render assays in the scrollable frame
         for assay_name in sorted(self.assay_data):
             frame = ttk.LabelFrame(scrollable_frame, text=assay_name)
-            frame.pack(fill='x', padx=10, pady=5)
+            frame.pack(fill='x', padx=10, pady=5, expand=True)
 
             row = 0
 
             def label_entry(key, default=''):
                 nonlocal row
-                ttk.Label(frame, text=key).grid(row=row, column=0, sticky='w')
+                ttk.Label(frame, text=key, font=self.font).grid(row=row, column=0, sticky='w')
                 ent = ttk.Entry(frame, width=20)
                 ent.grid(row=row, column=1)
                 ent.insert(0, self.assay_data[assay_name].get(key, default))
@@ -538,7 +543,7 @@ class ConfigEditor:
 
             # Cutoffs
             ttk.Label(frame, text="cutoffs").grid(row=row, column=0, sticky='w')
-            cutoff_ent = ttk.Entry(frame, width=30)
+            cutoff_ent = ttk.Entry(frame, width=20)
             cutoff_ent.insert(0, ', '.join(map(str, self.assay_data[assay_name].get('cutoffs', []))))
             cutoff_ent.grid(row=row, column=1)
             self.setup_auto_save_for_entry(cutoff_ent, f'{assay_name}.cutoffs')
@@ -651,6 +656,8 @@ class ConfigEditor:
 
 
 if __name__ == '__main__':
-    root = tk.Tk()
-    app = ConfigEditor(root)
-    root.mainloop()
+    from ttkthemes import ThemedTk
+    window = ThemedTk(theme="ubuntu")
+    custom_font = tkFont.Font( size=12)
+    app = ConfigEditor(window, custom_font)
+    window.mainloop()
