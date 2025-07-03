@@ -1,9 +1,17 @@
+import csv
+from config import config
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
+import tomllib
 import toml
 import os
 import threading
 import time
+
+from tqdm import tqdm
+
+from library import convert_unit, count_lines_and_hash, try_parse_to_assay_type
+from refactor import analyse_hole, build_data_table
 
 CONFIG_PATH = 'config.toml'
 ASSAY_CONFIG_PATH = 'assays.toml'
@@ -159,10 +167,74 @@ class ConfigEditor:
         threading.Thread(target=self.run_long_task, daemon=True).start()
 
     def run_long_task(self):
-        """Simulate a long-running operation with progress bar update."""
-        for i in range(101):
-            time.sleep(0.1)  # Replace this with real work
+
+        file_name = config.settings.exported_data_path
+
+        loc, hash_value = count_lines_and_hash(file_name)
+        self.progress["maximum"] = loc -1
+
+        i = 0
+        def update_progress():
+            nonlocal i
             self.progress.after(0, lambda val=i: self.progress.configure(value=val))
+            i+=1
+
+        data_table_ = build_data_table(file_name, loc, update_progress)
+
+        self.progress["value"] = 0
+
+        queries = None
+        with open('queries.toml', 'rb') as queries_file:
+            queries = tomllib.load(queries_file)
+
+        assay_list_ = []
+        for assay in list(queries.values()):
+            element = assay['element']
+            base_unit = assay['base_unit']
+            reported_unit = assay['reported_unit']
+            cutoffs = assay['cutoffs']
+            
+            primary = try_parse_to_assay_type(element, base_unit, reported_unit)
+
+            for i, cutoff in enumerate(cutoffs):
+                cutoffs[i] = convert_unit(cutoff, primary.reported_unit, primary.base_unit)
+
+            co_analytes = assay['co_analytes']
+            analytes = []
+            for co in co_analytes:
+                analytes.append(try_parse_to_assay_type(co['element'], co['base_unit'], co['reported_unit']))
+
+            assay_list_.append((primary, cutoffs, analytes))
+
+        print(assay_list_)
+
+        current_time = time.strftime('%H-%M-%S')  # Current timestamp as YYYYMMDDHHMMSS
+        filename = f'intercepts_{current_time}.csv'
+
+        if config.settings.hole_selections == ['*']:
+            holes_to_calc = list(data_table_.keys())
+        else:
+            holes_to_calc = config.settings.hole_selections
+
+        print(list(data_table_.keys()))
+
+
+        with open(filename, mode='w', newline='') as csvfile:
+            writer = csv.writer(csvfile, quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
+
+            header = ['Hole', 'Primary Analyte', 'Cutoff', 'Cutoff Unit', 'From', 'To', 'Interval', 'Primary Intercept', 'Intercept Label', 'Co Analytes']
+            writer.writerow(header)
+
+            self.progress["maximum"] = len(holes_to_calc)
+
+            i = 0
+            for hole in tqdm(holes_to_calc):
+                analyse_hole(hole, writer, data_table_, assay_list_)
+                self.progress.after(0, lambda val=i: self.progress.configure(value=val))
+                i+=1
+
+        messagebox.showinfo("Success", "Intervals were successfully calculated and exported")
+            
 
 
 

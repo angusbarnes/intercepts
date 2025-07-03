@@ -6,6 +6,7 @@ import sys
 import tomllib
 import logging
 from tqdm import tqdm
+import time
 
 from exceptions import MissingHoleDataException, custom_exception_handler
 from library import calculate_intercepts_from_group, construct_interval_from_csv_row, convert_unit, count_lines_and_hash, create_header_cache, try_parse_to_assay_type
@@ -59,6 +60,34 @@ def perform_analysis(data_table, assay_list, filename, holes_to_calc):
 
 
 
+def build_data_table(file_name, loc, update_progress=None):
+    data_table: dict[int, HoleData] = {}
+    with open(file_name, newline='') as csvfile:
+        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
+
+        header_row = next(spamreader) # Read the first line of the header file
+        header_cache = create_header_cache(header_row, ['From', 'To', config.settings.hole_id_column_name, config.settings.sample_id_column_name])
+    #print(header_cache)
+
+    # we use loc - 1 to account for the header row int the csv
+        for row in tqdm(spamreader, unit='Samples', total=loc - 1):
+            holeID = row[header_cache[config.settings.hole_id_column_name]]
+            if holeID not in data_table:
+                logging.debug(f"Found hole with ID: {holeID}")
+                data_table[holeID] = HoleData(holeID)
+
+            interval = None
+            try:
+                interval = construct_interval_from_csv_row(row, header_cache)
+            except MissingHoleDataException as err:
+                continue
+            data_table[holeID].add(interval)
+
+            if update_progress:
+                update_progress()
+        
+    return data_table
+
 
 log_level = logging.DEBUG
 
@@ -78,78 +107,53 @@ logging.basicConfig(
 sys.excepthook = custom_exception_handler
 
 
-if '-recalc' in sys.argv:
-    config.settings.recalc = True
-else:
-    config.settings.recalc = False
+if __name__ == "__main__":
+    if '-recalc' in sys.argv:
+        config.settings.recalc = True
+    else:
+        config.settings.recalc = False
 
 
-header_cache = {}
-data_table_: dict[int, HoleData] = {}
+    file_name = config.settings.exported_data_path
 
-file_name = config.settings.exported_data_path
+    loc, hash_value = count_lines_and_hash(file_name)
 
-loc, hash_value = count_lines_and_hash(file_name)
+    data_table_ = build_data_table(file_name, loc)
 
+    queries = None
+    with open('queries.toml', 'rb') as queries_file:
+        queries = tomllib.load(queries_file)
 
-with open(file_name, newline='') as csvfile:
-    spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
+    assay_list_ = []
+    for assay in list(queries.values()):
+        element = assay['element']
+        base_unit = assay['base_unit']
+        reported_unit = assay['reported_unit']
+        cutoffs = assay['cutoffs']
+        
+        primary = try_parse_to_assay_type(element, base_unit, reported_unit)
 
-    header_row = next(spamreader) # Read the first line of the header file
-    header_cache = create_header_cache(header_row, ['From', 'To', config.settings.hole_id_column_name, config.settings.sample_id_column_name])
-    #print(header_cache)
+        for i, cutoff in enumerate(cutoffs):
+            cutoffs[i] = convert_unit(cutoff, primary.reported_unit, primary.base_unit)
 
-    # we use loc - 1 to account for the header row int the csv
-    for row in tqdm(spamreader, unit='Samples', total=loc - 1):
+        co_analytes = assay['co_analytes']
+        analytes = []
+        for co in co_analytes:
+            analytes.append(try_parse_to_assay_type(co['element'], co['base_unit'], co['reported_unit']))
 
-        holeID = row[header_cache[config.settings.hole_id_column_name]]
-        if holeID not in data_table_:
-            logging.debug(f"Found hole with ID: {holeID}")
-            data_table_[holeID] = HoleData(holeID)
+        assay_list_.append((primary, cutoffs, analytes))
 
-        interval = None
-        try:
-            interval = construct_interval_from_csv_row(row, header_cache)
-        except MissingHoleDataException as err:
-            continue
-        data_table_[holeID].add(interval)
+    print(assay_list_)
 
+    current_time = time.strftime('%H-%M-%S')  # Current timestamp as YYYYMMDDHHMMSS
+    filename = f'intercepts_{current_time}.csv'
 
+    if config.settings.hole_selections == ['*']:
+        holes_to_calc = list(data_table_.keys())
+    else:
+        holes_to_calc = config.settings.hole_selections
 
-queries = None
-with open('queries.toml', 'rb') as queries_file:
-    queries = tomllib.load(queries_file)
-
-assay_list_ = []
-for assay in list(queries.values()):
-    element = assay['element']
-    base_unit = assay['base_unit']
-    reported_unit = assay['reported_unit']
-    cutoffs = assay['cutoffs']
-    
-    primary = try_parse_to_assay_type(element, base_unit, reported_unit)
-
-    for i, cutoff in enumerate(cutoffs):
-        cutoffs[i] = convert_unit(cutoff, primary.reported_unit, primary.base_unit)
-
-    co_analytes = assay['co_analytes']
-    analytes = []
-    for co in co_analytes:
-        analytes.append(try_parse_to_assay_type(co['element'], co['base_unit'], co['reported_unit']))
-
-    assay_list_.append((primary, cutoffs, analytes))
-
-print(assay_list_)
-import time
-current_time = time.strftime('%H-%M-%S')  # Current timestamp as YYYYMMDDHHMMSS
-filename = f'intercepts_{current_time}.csv'
-
-if config.settings.hole_selections == ['*']:
-    holes_to_calc = list(data_table_.keys())
-else:
-    holes_to_calc = config.settings.hole_selections
-
-print(list(data_table_.keys()))
+    print(list(data_table_.keys()))
 
 
-perform_analysis(data_table_, assay_list_, filename, holes_to_calc)
+    perform_analysis(data_table_, assay_list_, filename, holes_to_calc)
