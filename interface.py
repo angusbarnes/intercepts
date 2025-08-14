@@ -144,7 +144,7 @@ class ConfigEditor:
                                              initialvalue=', '.join(current))
                 if val is not None:
                     self.data['settings'][key] = [v.strip() for v in val.split(',') if v.strip()]
-                    self.entries[key].config(text=str(self.data['settings'][key]))
+                    self.main_entries[key].config(text=str(self.data['settings'][key]))
 
             ttk.Label(frm, text=label).grid(row=row, column=0, sticky='w')
             btn = ttk.Button(frm, text="Edit", command=edit_list)
@@ -501,29 +501,36 @@ class ConfigEditor:
         # Clear existing widgets
         for widget in self.assay_list_frame.winfo_children():
             widget.destroy()
-
+        
         # Create canvas and scrollbar
         canvas = tk.Canvas(self.assay_list_frame, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.assay_list_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
-
+        
         # Configure scrolling
         scrollable_frame.bind(
             "<Configure>",
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        
+        # Create the window in the canvas
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        
+        # Configure canvas to update scrollable_frame width when canvas width changes
+        def configure_canvas(event):
+            canvas.itemconfig(canvas_window, width=event.width)
+        
+        canvas.bind('<Configure>', configure_canvas)
         canvas.configure(yscrollcommand=scrollbar.set)
-
+        
         # Pack canvas and scrollbar
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-
+        
         # Render assays in the scrollable frame
         for assay_name in sorted(self.assay_data):
             frame = ttk.LabelFrame(scrollable_frame, text=assay_name)
-            frame.pack(fill='x', padx=10, pady=5, expand=True)
+            frame.pack(fill='x', padx=10, pady=5)
 
             row = 0
 
@@ -553,7 +560,7 @@ class ConfigEditor:
             # Co-analytes button
             def edit_co_analytes(assay=assay_name):
                 self.open_co_analytes_editor(assay)
-            ttk.Button(frame, text="Edit Co-analytes", command=edit_co_analytes).grid(row=row, column=0, columnspan=2)
+            ttk.Button(frame, text="Edit Co-analytes", command=edit_co_analytes).grid(row=0, column=2, columnspan=1, pady=(5,0))
             row += 1
             
             # Delete assay button
@@ -577,7 +584,7 @@ class ConfigEditor:
                     messagebox.showinfo("Deleted", f"Assay '{assay}' has been deleted.")
             
             ttk.Button(frame, text="Delete Assay", command=delete_assay, 
-                    style="Toolbutton").grid(row=row, column=0, columnspan=2, pady=(5,0))
+                    style="Toolbutton").grid(row=1, column=2, columnspan=1, pady=(5,0))
             row += 1
 
         # Bind mousewheel to canvas for smooth scrolling

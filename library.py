@@ -1,6 +1,7 @@
 
 # Record the header fields of interest and cache their indexes so that they can be looked up
 # in the csv rows efficiently
+import logging
 from typing import List
 from Hole import *
 import ElementParser
@@ -110,7 +111,7 @@ def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], as
         #print(f"Processing value: {value} from interval: {interval}")
 
         if value is not None and value < 0:
-            #logging.critical(f"WE HAVE NEGATIVE CONCENTRATIONS. {interval}")
+            logging.critical(f"WE HAVE NEGATIVE CONCENTRATIONS. {interval}")
             pass
 
         if value == None:
@@ -119,9 +120,9 @@ def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], as
 
         # Check if the value is below the cutoff
         if value >= cutoff:
-            
-            # Check if the current group is empty or has less than two wildcard values
-            if not current_group or current_gaps <= config.settings.internal_dilution_intervals:
+
+            # Check if the current group has less than two wildcard values
+            if current_gaps <= config.settings.internal_dilution_intervals:
                 current_group.append(interval)
                 collecting = True
                 #print("decision 1 was made for value")
@@ -135,7 +136,7 @@ def calculate_intercepts_from_group(contiguous_intervals: List[IntervalData], as
         elif collecting:
             # Add the value to the current group if it's a wildcard value
             current_group.append(interval)
-            current_gaps += 1
+            current_gaps += interval.get_length()
             #print("decision 3 was made for value")
         else: continue
 

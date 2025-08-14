@@ -80,7 +80,7 @@ class Intercept:
         return self.assay.convert_to_reported_unit(self.concentration)
 
     def to_string(self):
-        return f"{self.distance:.2f}m at {self.assay.convert_to_reported_unit(self.concentration):.3f} {self.assay.reported_unit_text()} {self.assay.element} from {self.span[0]:.0f} m"
+        return f"{self.distance:.2f}m @ {self.assay.convert_to_reported_unit(self.concentration):.2f}{self.assay.reported_unit_text()} {self.assay.element} from {self.span[0]:.0f}m"
 
 @dataclass
 class IntervalData:
